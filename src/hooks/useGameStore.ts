@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { AssetId, GameState, AssetState } from '../types';
 import { ASSET_DEFINITIONS, simulateYear } from '../logic/simulation';
+import { getEventForYear } from '../logic/events';
 
 interface GameStore extends GameState {
   decrementTimer: () => void;
@@ -68,13 +69,15 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   advanceYear: () => {
     set((state) => {
+      const event = getEventForYear(state.currentYear);
+      
       const currentAssetAmounts: Record<AssetId, number> = {} as any;
       Object.keys(state.assets).forEach(id => {
         currentAssetAmounts[id as AssetId] = state.assets[id as AssetId].amount;
       });
       currentAssetAmounts['KONTO_OSZ'] = state.cash;
 
-      const simulationResults = simulateYear(currentAssetAmounts);
+      const simulationResults = simulateYear(currentAssetAmounts, event?.assetModifiers);
       
       const newAssets = { ...state.assets };
       let newTotalNetWorth = 0;
@@ -101,13 +104,18 @@ export const useGameStore = create<GameStore>((set, get) => ({
       
       newTotalNetWorth += newCash;
 
+      const nextYearEvent = getEventForYear(state.currentYear + 1);
+      const newsMessage = nextYearEvent 
+        ? `${nextYearEvent.headline}: ${nextYearEvent.description}`
+        : `Rok ${state.currentYear} zakończony. Otrzymano ${YEARLY_INCOME} PLN dochodu.`;
+
       return {
         currentYear: state.currentYear + 1,
         cash: newCash,
         assets: newAssets,
         totalNetWorth: newTotalNetWorth,
         timer: 60,
-        news: [...state.news, `Rok ${state.currentYear} zakończony. Otrzymano ${YEARLY_INCOME} PLN dochodu.`]
+        news: [...state.news, newsMessage]
       };
     });
   },

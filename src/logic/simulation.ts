@@ -1,4 +1,4 @@
-import { AssetDefinition, AssetId } from '../types';
+import { AssetDefinition, AssetId, AssetModifier } from '../types';
 import { randomNormal } from './math';
 
 export const ASSET_DEFINITIONS: Record<AssetId, AssetDefinition> = {
@@ -45,17 +45,25 @@ export function calculateMonthlyReturn(annualReturn: number, annualVolatility: n
   return Math.exp(drift + diffusion) - 1;
 }
 
-export function simulateYear(assets: Record<AssetId, number>): Record<AssetId, number[]> {
+export function simulateYear(
+  assets: Record<AssetId, number>, 
+  modifiers: AssetModifier[] = []
+): Record<AssetId, number[]> {
   const results: Partial<Record<AssetId, number[]>> = {};
   
   Object.keys(ASSET_DEFINITIONS).forEach((id) => {
     const assetId = id as AssetId;
     const def = ASSET_DEFINITIONS[assetId];
+    const modifier = modifiers.find(m => m.assetId === assetId);
+    
+    const mu = def.annualReturn + (modifier?.mu || 0);
+    const sigma = Math.max(0.001, def.annualVolatility + (modifier?.sigma || 0));
+
     let currentAmount = assets[assetId] || 0;
     const monthlyHistory: number[] = [];
     
     for (let m = 0; m < 12; m++) {
-      const monthlyReturn = calculateMonthlyReturn(def.annualReturn, def.annualVolatility);
+      const monthlyReturn = calculateMonthlyReturn(mu, sigma);
       currentAmount = currentAmount * (1 + monthlyReturn);
       monthlyHistory.push(currentAmount);
     }

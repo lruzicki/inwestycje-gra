@@ -3,7 +3,7 @@ import { useGameStore } from '../../hooks/useGameStore';
 import { Clock, TrendingUp, LayoutDashboard, LineChart, ShoppingCart, PieChart, Trophy, Settings, Wallet, Bell } from 'lucide-react';
 
 const TopBar: React.FC = () => {
-  const { currentYear, timer, totalNetWorth } = useGameStore();
+  const { currentYear, currentMonth, timer, totalNetWorth } = useGameStore();
 
   const formattedNetWorth = new Intl.NumberFormat('pl-PL', { 
     style: 'currency', 
@@ -11,13 +11,18 @@ const TopBar: React.FC = () => {
     maximumFractionDigits: 0
   }).format(totalNetWorth);
 
+  const monthNames = [
+    "Styczeń", "Luty", "Marzec", "Kwiecień", "Maj", "Czerwiec",
+    "Lipiec", "Sierpień", "Wrzesień", "Październik", "Listopad", "Grudzień"
+  ];
+
   return (
     <header className="h-16 bg-white border-b border-slate-200 fixed top-0 left-80 right-0 z-40 flex items-center justify-between px-8">
       <div className="flex items-center gap-8">
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2 bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200">
+          <div className="flex items-center gap-2 bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200 min-w-[140px]">
             <LayoutDashboard size={18} className="text-brand-blue" />
-            <span className="text-sm font-bold text-slate-700">Rok {currentYear}/20</span>
+            <span className="text-sm font-bold text-slate-700">{monthNames[currentMonth - 1]} {currentYear}</span>
           </div>
           <div className="flex items-center gap-2 bg-orange-50 px-3 py-1.5 rounded-lg border border-orange-100">
             <Clock size={18} className="text-orange-500" />

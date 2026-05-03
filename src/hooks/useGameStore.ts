@@ -1,26 +1,24 @@
 import { create } from 'zustand';
 import { AssetId, GameState, AssetState } from '../types';
-import { ASSET_DEFINITIONS, simulateYear } from '../logic/simulation';
+import { ASSET_DEFINITIONS, simulateMonth } from '../logic/simulation';
 import { getEventForYear } from '../logic/events';
 
 interface GameStore extends GameState {
-  decrementTimer: () => void;
-  advanceYear: () => void;
+  startGame: (initialCash: number, monthlySavings: number) => void;
+  tick: () => void;
+  simulateMonth: () => void;
   updateAllocation: (id: AssetId, newAmount: number) => void;
   resetGame: () => void;
 }
 
-const INITIAL_CASH = 100000;
-const YEARLY_INCOME = 24000;
-
-const createInitialAssets = (): Record<AssetId, AssetState> => {
+const createInitialAssets = (initialCash: number): Record<AssetId, AssetState> => {
   const assets: Partial<Record<AssetId, AssetState>> = {};
   Object.keys(ASSET_DEFINITIONS).forEach((id) => {
     const assetId = id as AssetId;
     assets[assetId] = {
       id: assetId,
-      amount: 0,
-      history: [0],
+      amount: assetId === 'KONTO_OSZ' ? initialCash : 0,
+      history: [assetId === 'KONTO_OSZ' ? initialCash : 0],
     };
   });
   return assets as Record<AssetId, AssetState>;
@@ -28,19 +26,109 @@ const createInitialAssets = (): Record<AssetId, AssetState> => {
 
 export const useGameStore = create<GameStore>((set, get) => ({
   currentYear: 1,
-  cash: INITIAL_CASH,
-  assets: createInitialAssets(),
-  totalNetWorth: INITIAL_CASH,
-  timer: 60,
-  news: ['Witaj w grze Czas to Pieniądz! Masz 60 sekund na alokację środków przed końcem roku.'],
+  currentMonth: 1,
+  monthlySavings: 2000,
+  isGameStarted: false,
+  cash: 0,
+  assets: createInitialAssets(0),
+  totalNetWorth: 0,
+  timer: 5,
+  news: ['Witaj w grze Czas to Pieniądz! Skonfiguruj swoją grę i zacznij inwestować.'],
+  currentEvent: getEventForYear(1),
 
-  decrementTimer: () => {
-    const { timer, advanceYear } = get();
+  startGame: (initialCash: number, monthlySavings: number) => {
+    set({
+      isGameStarted: true,
+      cash: initialCash,
+      monthlySavings,
+      assets: createInitialAssets(initialCash),
+      totalNetWorth: initialCash,
+      currentYear: 1,
+      currentMonth: 1,
+      timer: 5,
+      news: ['Gra rozpoczęta! Powodzenia!'],
+      currentEvent: getEventForYear(1),
+    });
+  },
+
+  tick: () => {
+    const { timer, isGameStarted } = get();
+    if (!isGameStarted) return;
+
     if (timer <= 1) {
-      advanceYear();
+      get().simulateMonth();
     } else {
       set({ timer: timer - 1 });
     }
+  },
+
+  simulateMonth: () => {
+    set((state) => {
+      const currentAssetAmounts: Record<AssetId, number> = {} as any;
+      Object.keys(state.assets).forEach(id => {
+        currentAssetAmounts[id as AssetId] = state.assets[id as AssetId].amount;
+      });
+      currentAssetAmounts['KONTO_OSZ'] = state.cash;
+
+      const monthlyResults = simulateMonth(currentAssetAmounts, state.currentEvent?.assetModifiers);
+      
+      const newAssets = { ...state.assets };
+      let newTotalNetWorth = 0;
+      let monthlyProfitLoss = 0;
+
+      Object.keys(monthlyResults).forEach(id => {
+        const assetId = id as AssetId;
+        const newAmount = monthlyResults[assetId];
+        const oldAmount = currentAssetAmounts[assetId];
+        
+        monthlyProfitLoss += (newAmount - oldAmount);
+
+        newAssets[assetId] = {
+          id: assetId,
+          amount: newAmount,
+          history: [...state.assets[assetId].history, newAmount]
+        };
+        
+        if (assetId !== 'KONTO_OSZ') {
+            newTotalNetWorth += newAmount;
+        }
+      });
+
+      const newCash = newAssets['KONTO_OSZ'].amount + state.monthlySavings;
+      newAssets['KONTO_OSZ'].amount = newCash;
+      newAssets['KONTO_OSZ'].history[newAssets['KONTO_OSZ'].history.length - 1] = newCash;
+      
+      newTotalNetWorth += newCash;
+
+      const profitLossMessage = monthlyProfitLoss >= 0 
+        ? `Zysk w tym miesiącu: +${new Intl.NumberFormat('pl-PL').format(Math.abs(monthlyProfitLoss))} PLN`
+        : `Strata w tym miesiącu: -${new Intl.NumberFormat('pl-PL').format(Math.abs(monthlyProfitLoss))} PLN`;
+
+      let nextMonth = state.currentMonth + 1;
+      let nextYear = state.currentYear;
+      let nextEvent = state.currentEvent;
+      let newsMessage = profitLossMessage;
+
+      if (nextMonth > 12) {
+        nextMonth = 1;
+        nextYear += 1;
+        nextEvent = getEventForYear(nextYear);
+        if (nextEvent) {
+          newsMessage = `${nextEvent.headline}: ${nextEvent.description}`;
+        }
+      }
+
+      return {
+        currentMonth: nextMonth,
+        currentYear: nextYear,
+        cash: newCash,
+        assets: newAssets,
+        totalNetWorth: newTotalNetWorth,
+        timer: 5,
+        news: [...state.news, newsMessage],
+        currentEvent: nextEvent
+      };
+    });
   },
 
   updateAllocation: (id: AssetId, newAmount: number) => {
@@ -67,65 +155,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
     });
   },
 
-  advanceYear: () => {
-    set((state) => {
-      const event = getEventForYear(state.currentYear);
-      
-      const currentAssetAmounts: Record<AssetId, number> = {} as any;
-      Object.keys(state.assets).forEach(id => {
-        currentAssetAmounts[id as AssetId] = state.assets[id as AssetId].amount;
-      });
-      currentAssetAmounts['KONTO_OSZ'] = state.cash;
-
-      const simulationResults = simulateYear(currentAssetAmounts, event?.assetModifiers);
-      
-      const newAssets = { ...state.assets };
-      let newTotalNetWorth = 0;
-
-      Object.keys(simulationResults).forEach(id => {
-        const assetId = id as AssetId;
-        const monthlyHistory = simulationResults[assetId];
-        const endYearAmount = monthlyHistory[11];
-        
-        newAssets[assetId] = {
-          id: assetId,
-          amount: endYearAmount,
-          history: [...state.assets[assetId].history, ...monthlyHistory]
-        };
-        
-        if (assetId !== 'KONTO_OSZ') {
-            newTotalNetWorth += endYearAmount;
-        }
-      });
-
-      const newCash = newAssets['KONTO_OSZ'].amount + YEARLY_INCOME;
-      newAssets['KONTO_OSZ'].amount = newCash;
-      newAssets['KONTO_OSZ'].history[newAssets['KONTO_OSZ'].history.length - 1] = newCash;
-      
-      newTotalNetWorth += newCash;
-
-      const nextYearEvent = getEventForYear(state.currentYear + 1);
-      const newsMessage = nextYearEvent 
-        ? `${nextYearEvent.headline}: ${nextYearEvent.description}`
-        : `Rok ${state.currentYear} zakończony. Otrzymano ${YEARLY_INCOME} PLN dochodu.`;
-
-      return {
-        currentYear: state.currentYear + 1,
-        cash: newCash,
-        assets: newAssets,
-        totalNetWorth: newTotalNetWorth,
-        timer: 60,
-        news: [...state.news, newsMessage]
-      };
-    });
-  },
-
   resetGame: () => set({
     currentYear: 1,
-    cash: INITIAL_CASH,
-    assets: createInitialAssets(),
-    totalNetWorth: INITIAL_CASH,
-    timer: 60,
-    news: ['Gra zresetowana. Startujemy!']
+    currentMonth: 1,
+    isGameStarted: false,
+    cash: 0,
+    assets: createInitialAssets(0),
+    totalNetWorth: 0,
+    timer: 5,
+    news: ['Gra zresetowana. Skonfiguruj ją ponownie.']
   }),
 }));

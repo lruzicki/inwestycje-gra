@@ -38,9 +38,13 @@ export interface GameEvent {
 
 export interface GameState {
   currentYear: number;
+  currentMonth: number;
+  monthlySavings: number;
+  isGameStarted: boolean;
   cash: number; // Balance in KONTO_OSZ
   assets: Record<AssetId, AssetState>;
   totalNetWorth: number;
   timer: number;
   news: string[];
+  currentEvent?: GameEvent;
 }

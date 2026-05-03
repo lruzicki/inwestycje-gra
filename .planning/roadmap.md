@@ -5,17 +5,17 @@ Develop a functional and visually polished investment game prototype based on th
 
 ## Phases
 
-### Phase 1: Project Initialization & Core Dashboard Layout (CURRENT)
+### Phase 1: Project Initialization & Core Dashboard Layout
 - **Goal:** Set up the tech stack and build the primary UI shell.
-- **Status:** Planning
+- **Status:** Completed
 
 ### Phase 2: Interactive Asset Allocation & State Management
 - **Goal:** Implement reactive sliders and state management for portfolio distribution.
-- **Status:** Pending
+- **Status:** Completed
 
 ### Phase 3: Dynamic Charts & Mock Data
 - **Goal:** Integrate a charting library (e.g., Recharts) and simulate investment performance.
-- **Status:** Pending
+- **Status:** Completed
 
 ### Phase 4: News System & Game Logic
 - **Goal:** Implement the "Breaking News" system and its impact on asset values.
